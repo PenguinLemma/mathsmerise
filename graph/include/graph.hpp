@@ -35,10 +35,17 @@ class Graph
 
     constexpr auto adjacencies() const noexcept;
 
+    constexpr auto nodes() const noexcept;
+
     constexpr void addNode(NodeID node) noexcept;
 
+    constexpr NodeID addNode() noexcept;
+
     template <class... Neighbours>
-    constexpr void connect(NodeID node, Neighbours... neighbours) noexcept;
+    constexpr void connect(NodeID node, NodeID n1, Neighbours... other_neighbours) noexcept;
+
+    template <class Container>
+    constexpr void connect(NodeID node, Container const& neighbours) noexcept;
 
   private:
     AdjacencyMap adjacencies_;
@@ -103,6 +110,12 @@ constexpr auto Graph<IterativeGenerator>::adjacencies() const noexcept
 }
 
 template <class IterativeGenerator>
+constexpr auto Graph<IterativeGenerator>::nodes() const noexcept
+{
+    return nodes_;
+}
+
+template <class IterativeGenerator>
 constexpr void Graph<IterativeGenerator>::addNode(NodeID node) noexcept
 {
     if (nodes_.find(node) != std::end(nodes_))
@@ -111,25 +124,49 @@ constexpr void Graph<IterativeGenerator>::addNode(NodeID node) noexcept
 }
 
 template <class IterativeGenerator>
-template <class... Neighbours>
-constexpr void Graph<IterativeGenerator>::connect(NodeID node, Neighbours... neighbours) noexcept
+constexpr typename Graph<IterativeGenerator>::NodeID Graph<IterativeGenerator>::addNode() noexcept
 {
-    using iterator = typename AdjacencyMap::iterator;
-    std::pair<iterator, bool> node_found = adjacencies_.insert({node, {}});
-    //< -this breaks
-    // constexprness, the line above doesn't  ??
-    // auto node_found = adjacencies_.insert(node);
-    if (!node_found.second) {
-        nodes_.insert(node);
+    NodeID new_node_id = 0;
+    if (!nodes_.empty()) {
+        auto it_max_el = std::max_element(std::begin(nodes_), std::end(nodes_));
+        new_node_id = *it_max_el + 1;
     }
-    std::array<std::pair<iterator, bool>, sizeof...(neighbours)> n = {
-        adjacencies_.insert({neighbours, {}})...};
-    for (auto const& [it_n, found] : n) {
-        it_n.second.insert(node);
-        if (!found) {
-            nodes_.insert(it_n.first);
-        }
-    }
+    nodes_.insert(new_node_id);
+    return new_node_id;
 }
 
+template <class IterativeGenerator>
+template <class... Neighbours>
+constexpr void Graph<IterativeGenerator>::connect(NodeID node,
+                                                  NodeID n1,
+                                                  Neighbours... other_neighbours) noexcept
+{
+    std::array<NodeID, sizeof...(other_neighbours) + 1> n = {n1, other_neighbours...};
+    connect(node, n);
+}
+
+template <class IterativeGenerator>
+template <class Container>
+constexpr void Graph<IterativeGenerator>::connect(NodeID node, Container const& neighbours) noexcept
+{
+    using Iterator = typename AdjacencyMap::iterator;
+    std::pair<Iterator, bool> node_inserted = adjacencies_.insert({node, {}});
+    auto& node_adjacencies = node_inserted.first->second;
+
+    if (node_inserted.second) {
+        nodes_.insert(node);
+    }
+
+    for (auto neighbour : neighbours) {
+        Iterator it;
+        bool neighbour_inserted;
+        std::tie(it, neighbour_inserted) = adjacencies_.insert({neighbour, {}});
+        auto& neighbour_adjacencies = it->second;
+        neighbour_adjacencies.insert(node);
+        if (neighbour_inserted) {
+            nodes_.insert(neighbour);
+        }
+        node_adjacencies.insert(neighbour);
+    }
+}  // namespace mm
 }  // namespace mm
