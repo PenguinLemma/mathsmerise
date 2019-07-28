@@ -1,5 +1,9 @@
-mm_add_header_only_library(
+pl_add_header_only_library(
     Catch
-    NAMESPACE Catch2::
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/include/catch.hpp
+    NAMESPACE
+        Catch2::
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/catch.hpp
+    COMPILER_FEATURES
+        cxx_std_17
 )
